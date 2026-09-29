@@ -3,7 +3,7 @@ import json
 import httpx
 import pika
 
-from lab_1.producer import QUEUE_NAME, RABBITMQ_HOST, save_result
+from lab_1.producer import QUEUE_NAME, RABBITMQ_HOST, declare_topology, save_result
 
 
 def on_message(channel, method, properties, body: bytes) -> None:
@@ -34,7 +34,7 @@ def on_message(channel, method, properties, body: bytes) -> None:
 def main() -> None:
     connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
     channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_NAME, durable=True)
+    declare_topology(channel)
     channel.basic_consume(
         queue=QUEUE_NAME, on_message_callback=on_message, auto_ack=False
     )

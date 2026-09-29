@@ -11,6 +11,9 @@ RABBITMQ_HOST = "localhost"
 QUEUE_NAME = "task_queue"
 RESULTS_DIR = Path("results")
 
+DLX_NAME = "task_dlx"
+DLQ_NAME = "task_dlq"
+
 app = FastAPI()
 
 
@@ -19,6 +22,7 @@ class ProcessRequest(BaseModel):
 
 
 # --- Results store: one JSON file per request, shared by producer and consumer ---
+
 
 def save_result(request_id: str, data: dict) -> None:
     RESULTS_DIR.mkdir(exist_ok=True)
@@ -37,11 +41,12 @@ def load_result(request_id: str) -> dict | None:
 
 # --- RabbitMQ ---
 
+
 def publish(payload: dict) -> None:
     connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
     try:
         channel = connection.channel()
-        channel.queue_declare(queue=QUEUE_NAME, durable=True)
+        declare_topology(channel)
         channel.basic_publish(
             exchange="",
             routing_key=QUEUE_NAME,
@@ -55,7 +60,22 @@ def publish(payload: dict) -> None:
         connection.close()
 
 
+def declare_topology(channel):
+    channel.exchange_declare(exchange=DLX_NAME, exchange_type="direct", durable=True)
+    channel.queue_declare(queue=DLQ_NAME, durable=True)
+    channel.queue_bind(queue=DLQ_NAME, exchange=DLX_NAME, routing_key=DLQ_NAME)
+    channel.queue_declare(
+        queue=QUEUE_NAME,
+        durable=True,
+        arguments={
+            "x-dead-letter-exchange": DLX_NAME,
+            "x-dead-letter-routing-key": DLQ_NAME,
+        },
+    )
+
+
 # --- Routes ---
+
 
 @app.get("/health")
 def health() -> dict:
@@ -76,7 +96,10 @@ def process(req: ProcessRequest) -> dict:
     try:
         publish(payload)
     except pika.exceptions.AMQPError:
-        save_result(request_id, {"id": request_id, "status": "error", "error": "broker unavailable"})
+        save_result(
+            request_id,
+            {"id": request_id, "status": "error", "error": "broker unavailable"},
+        )
         raise HTTPException(status_code=503, detail="Message broker unavailable")
     return {"id": request_id}
 
