@@ -95,7 +95,7 @@ def process(req: ProcessRequest) -> dict:
     save_result(request_id, {"id": request_id, "status": "processing"})
     try:
         publish(payload)
-    except pika.exceptions.AMQPError:
+    except pika.exceptions.AMQPError: # type: ignore
         save_result(
             request_id,
             {"id": request_id, "status": "error", "error": "broker unavailable"},
