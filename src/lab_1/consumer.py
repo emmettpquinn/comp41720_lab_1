@@ -11,7 +11,7 @@ def on_message(channel, method, properties, body: bytes) -> None:
 def main() -> None:
     connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBITMQ_HOST))
     channel = connection.channel()
-    channel.queue_declare(queue=QUEUE_NAME)
+    channel.queue_declare(queue=QUEUE_NAME, durable=True)
     channel.basic_consume(queue=QUEUE_NAME, on_message_callback=on_message)
     print(f"Waiting for messages on '{QUEUE_NAME}'. Press Ctrl+C to exit.")
     try:
